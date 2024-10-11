@@ -188,6 +188,17 @@ class ColorConverterApp(QWidget):
         except ValueError:
             return
 
+        r = max(0, min(r, 255))
+        g = max(0, min(g, 255))
+        b = max(0, min(b, 255))
+
+        if str(r) != self.r_input.text():
+            self.r_input.setText(str(r))
+        if str(g) != self.g_input.text():
+            self.g_input.setText(str(g))
+        if str(b) != self.b_input.text():
+            self.b_input.setText(str(b))
+
         sliders = [self.r_slider, self.g_slider, self.b_slider]
         self.disable_signals(sliders)
         self.r_slider.setValue(r)
@@ -220,6 +231,20 @@ class ColorConverterApp(QWidget):
             k = int(self.k_input.text())
         except ValueError:
             return
+
+        c = max(0, min(c, 100))
+        m = max(0, min(m, 100))
+        y = max(0, min(y, 100))
+        k = max(0, min(k, 100))
+
+        if str(c) != self.c_input.text():
+            self.c_input.setText(str(c))
+        if str(m) != self.m_input.text():
+            self.m_input.setText(str(m))
+        if str(y) != self.y_input.text():
+            self.y_input.setText(str(y))
+        if str(k) != self.k_input.text():
+            self.k_input.setText(str(k))
 
         sliders = [self.c_slider, self.m_slider, self.y_slider, self.k_slider]
         self.disable_signals(sliders)
@@ -255,6 +280,12 @@ class ColorConverterApp(QWidget):
         h = max(0, min(h, 360))
         s = max(0, min(s, 100))
         v = max(0, min(v, 100))
+        if str(h) != self.h_input.text():
+            self.h_input.setText(str(h))
+        if str(s) != self.s_input.text():
+            self.s_input.setText(str(s))
+        if str(v) != self.v_input.text():
+            self.v_input.setText(str(v))
 
         sliders = [self.h_slider, self.s_slider, self.v_slider]
         self.disable_signals(sliders)
