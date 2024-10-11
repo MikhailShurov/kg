@@ -1,8 +1,8 @@
 import sys
+
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSlider, QLineEdit, \
     QColorDialog, QFrame
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor
 
 
 class ColorConverterApp(QWidget):
@@ -188,9 +188,12 @@ class ColorConverterApp(QWidget):
         except ValueError:
             return
 
+        sliders = [self.r_slider, self.g_slider, self.b_slider]
+        self.disable_signals(sliders)
         self.r_slider.setValue(r)
         self.g_slider.setValue(g)
         self.b_slider.setValue(b)
+        self.enable_signals(sliders)
 
         self.update_cmyk_output(_from="rgb")
         self.update_hsv_output(_from="rgb")
@@ -218,10 +221,13 @@ class ColorConverterApp(QWidget):
         except ValueError:
             return
 
+        sliders = [self.c_slider, self.m_slider, self.y_slider, self.k_slider]
+        self.disable_signals(sliders)
         self.c_slider.setValue(c)
         self.m_slider.setValue(m)
         self.y_slider.setValue(y)
         self.k_slider.setValue(k)
+        self.enable_signals(sliders)
 
         self.update_rgb_output(_from="cmyk")
         self.update_hsv_output(_from="cmyk")
@@ -250,14 +256,18 @@ class ColorConverterApp(QWidget):
         s = max(0, min(s, 100))
         v = max(0, min(v, 100))
 
+        sliders = [self.h_slider, self.s_slider, self.v_slider]
+        self.disable_signals(sliders)
         self.h_slider.setValue(h)
         self.s_slider.setValue(s)
         self.v_slider.setValue(v)
+        self.enable_signals(sliders)
 
         self.update_rgb_output(_from="hsv")
         self.update_cmyk_output(_from="hsv")
 
     def update_rgb_output(self, _from: str):
+        r, g, b = None, None, None
         if _from == "cmyk":
             c = self.c_slider.value() / 100.0
             m = self.m_slider.value() / 100.0
@@ -272,27 +282,31 @@ class ColorConverterApp(QWidget):
             s = self.s_slider.value() / 100.0
             v = self.v_slider.value() / 100.0
 
+            h = h % 360
+
             if s == 0:
                 r = g = b = v * 255
             else:
-                i = int(h / 60) % 6
-                f = (h / 60) - i
-                p = v * (1 - s)
-                q = v * (1 - f * s)
-                t = v * (1 - (1 - f) * s)
+                c = v * s
+                x = c * (1 - abs((h / 60) % 2 - 1))
+                m = v - c
 
-                if i == 0:
-                    r, g, b = v * 255, t * 255, p * 255
-                elif i == 1:
-                    r, g, b = q * 255, v * 255, p * 255
-                elif i == 2:
-                    r, g, b = p * 255, v * 255, t * 255
-                elif i == 3:
-                    r, g, b = p * 255, q * 255, v * 255
-                elif i == 4:
-                    r, g, b = t * 255, p * 255, v * 255
-                elif i == 5:
-                    r, g, b = v * 255, p * 255, q * 255
+                if 0 <= h < 60:
+                    r, g, b = c, x, 0
+                elif 60 <= h < 120:
+                    r, g, b = x, c, 0
+                elif 120 <= h < 180:
+                    r, g, b = 0, c, x
+                elif 180 <= h < 240:
+                    r, g, b = 0, x, c
+                elif 240 <= h < 300:
+                    r, g, b = x, 0, c
+                elif 300 <= h < 360:
+                    r, g, b = c, 0, x
+
+                r = (r + m) * 255
+                g = (g + m) * 255
+                b = (b + m) * 255
 
         sliders = [self.r_slider, self.g_slider, self.b_slider]
         self.disable_signals(sliders)
@@ -313,7 +327,7 @@ class ColorConverterApp(QWidget):
             g = self.g_slider.value() / 255.0
             b = self.b_slider.value() / 255.0
         elif _from == "hsv":
-            h = self.h_slider.value()
+            h = self.h_slider.value() % 360
             s = self.s_slider.value() / 100.0
             v = self.v_slider.value() / 100.0
 
@@ -427,6 +441,10 @@ class ColorConverterApp(QWidget):
     def enable_signals(signals: list):
         for signal in signals:
             signal.blockSignals(False)
+
+    @staticmethod
+    def round(number):
+        return int(number) + 1 if (number * 10) % 10 >= 5 else int(number)
 
 
 if __name__ == '__main__':
