@@ -1,192 +1,142 @@
 import cv2
 import numpy as np
-from tkinter import Tk, Button, Label, filedialog, Canvas, Frame, Scrollbar
-from PIL import Image, ImageTk
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 
-class ImageProcessorApp:
-    def __init__(self, master):
-        self.master = master
-        self.master.title("Image Processor")
-        self.master.geometry("1200x800")
+class ImageSegmentationApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Image Segmentation and Thresholding")
+        self.image = None
 
-        self.canvas = Canvas(self.master)
-        self.scrollbar = Scrollbar(self.master, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = Frame(self.canvas)
+        # Кнопки для загрузки изображения и запуска анализа
+        self.load_button = tk.Button(root, text="Load Image", command=self.load_image)
+        self.load_button.pack(pady=5)
 
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
+        self.bernsen_button = tk.Button(root, text="Bernsen Threshold", command=self.apply_bernsen, state=tk.DISABLED)
+        self.bernsen_button.pack(pady=5)
 
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="n")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.niblack_button = tk.Button(root, text="Niblack Threshold", command=self.apply_niblack, state=tk.DISABLED)
+        self.niblack_button.pack(pady=5)
 
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
+        self.points_button = tk.Button(root, text="Detect Points", command=self.detect_points, state=tk.DISABLED)
+        self.points_button.pack(pady=5)
 
-        self.label = Label(self.scrollable_frame, text="Choose an image to process:")
-        self.label.pack(pady=10)
+        self.lines_button = tk.Button(root, text="Detect 45° Lines", command=self.detect_lines_45, state=tk.DISABLED)
+        self.lines_button.pack(pady=5)
 
-        self.choose_button = Button(self.scrollable_frame, text="Choose Image", command=self.choose_image)
-        self.choose_button.pack()
+        self.gradient_button = tk.Button(root, text="Gradient Detection", command=self.detect_gradient,
+                                         state=tk.DISABLED)
+        self.gradient_button.pack(pady=5)
 
-        self.original_image_label = Label(self.scrollable_frame)
-        self.original_image_label.pack(pady=10)
+        # Поле для отображения графика
+        self.figure = Figure(figsize=(6, 6))
+        self.canvas = FigureCanvasTkAgg(self.figure, master=root)
+        self.canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-    def _on_mousewheel(self, event):
-        self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-    def choose_image(self):
-        file_path = filedialog.askopenfilename()
+    def load_image(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg;*.bmp")])
         if file_path:
-            self.process_image(file_path)
+            self.image = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
+            if self.image is None:
+                messagebox.showerror("Error", "Unable to load image.")
+                return
+            self.show_image(self.image, "Loaded Image")
+            # Активируем кнопки для анализа
+            self.bernsen_button.config(state=tk.NORMAL)
+            self.niblack_button.config(state=tk.NORMAL)
+            self.points_button.config(state=tk.NORMAL)
+            self.lines_button.config(state=tk.NORMAL)
+            self.gradient_button.config(state=tk.NORMAL)
 
-    def process_image(self, file_path):
-        image = cv2.imread(file_path, cv2.IMREAD_GRAYSCALE)
+    def show_image(self, img, title):
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        ax.imshow(img, cmap='gray')
+        ax.set_title(title)
+        ax.axis("off")
+        self.canvas.draw()
 
-        # Adaptive thresholding
-        adaptive_thresh = cv2.adaptiveThreshold(
-            image,
-            255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY,
-            7,
-            0
-        )
+    def apply_bernsen(self):
+        if self.image is None:
+            return
+        result = self.bernsen_threshold(self.image)
+        self.show_image(result, "Bernsen Threshold")
 
-        # Local Otsu thresholding
-        otsu_segmented = self.local_otsu(image, block_size=10)
+    def apply_niblack(self):
+        if self.image is None:
+            return
+        result = self.niblack_threshold(self.image)
+        self.show_image(result, "Niblack Threshold")
 
-        # Point Detection
-        points_method1, points_method2 = self.detect_points(image)
+    def detect_points(self):
+        if self.image is None:
+            return
+        result = self.point_detection(self.image)
+        self.show_image(result, "Point Detection")
 
-        # Line Detection
-        lines_method1, lines_method2 = self.detect_lines(image)
+    def detect_lines_45(self):
+        if self.image is None:
+            return
+        result = self.line_detection_45(self.image)
+        self.show_image(result, "45° Line Detection")
 
-        # Edge Detection
-        edges_method1, edges_method2 = self.detect_edges(image)
+    def detect_gradient(self):
+        if self.image is None:
+            return
+        result = self.gradient_detection(self.image)
+        self.show_image(result, "Gradient Detection")
 
-        self.show_images(
-            image,
-            adaptive_thresh,
-            otsu_segmented,
-            points_method1,
-            points_method2,
-            lines_method1,
-            lines_method2,
-            edges_method1,
-            edges_method2
-        )
+    def bernsen_threshold(self, image, window_size=15, contrast_threshold=15):
+        half_size = window_size // 2
+        output = np.zeros(image.shape, dtype=np.uint8)
 
-    def local_otsu(self, image, block_size):
-        height, width = image.shape
-        segmented_image = np.zeros_like(image)
+        for i in range(half_size, image.shape[0] - half_size):
+            for j in range(half_size, image.shape[1] - half_size):
+                local_region = image[i - half_size:i + half_size + 1, j - half_size:j + half_size + 1]
+                max_val = int(np.max(local_region))
+                min_val = int(np.min(local_region))
+                contrast = max_val - min_val
+                mid_gray = (max_val + min_val) // 2
 
-        for y in range(0, height, block_size):
-            for x in range(0, width, block_size):
-                block = image[y:y + block_size, x:x + block_size]
-                if block.size == block_size * block_size:
-                    _, local_thresh = cv2.threshold(block, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-                    segmented_image[y:y + block_size, x:x + block_size] = local_thresh
+                if contrast < contrast_threshold:
+                    output[i, j] = 255 if mid_gray > 127 else 0
+                else:
+                    output[i, j] = 255 if image[i, j] > mid_gray else 0
+        return output
 
-        return segmented_image
+    def niblack_threshold(self, image, window_size=15, k=-0.2):
+        mean = cv2.blur(image, (window_size, window_size))
+        sqmean = cv2.blur(image ** 2, (window_size, window_size))
+        stddev = np.sqrt(sqmean - mean ** 2)
 
-    def detect_points(self, image):
-        # Local Thresholding
-        blur = cv2.GaussianBlur(image, (3, 3), 0)
-        _, points_method1 = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        threshold = mean + k * stddev
+        output = np.where(image > threshold, 255, 0).astype(np.uint8)
+        return output
 
-        # Harris Corner Detection
-        harris_corners = cv2.cornerHarris(image, 2, 3, 0.04)
-        harris_points = cv2.dilate(harris_corners, None)
-        points_method2 = np.uint8(harris_points > 0.01 * harris_points.max()) * 255
+    def point_detection(self, image):
+        kernel = np.array([[-1, -1, -1],
+                           [-1, 8, -1],
+                           [-1, -1, -1]])
+        return cv2.filter2D(image, -1, kernel)
 
-        return points_method1, points_method2
+    def line_detection_45(self, image):
+        kernel = np.array([[2, -1, -1],
+                           [-1, 2, -1],
+                           [-1, -1, 2]])
+        return cv2.filter2D(image, -1, kernel)
 
-    def detect_lines(self, image):
-        # Adaptive Threshold
-        adaptive_thresh = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 15, -2)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 1))
-        lines_method1 = cv2.morphologyEx(adaptive_thresh, cv2.MORPH_CLOSE, kernel)
-
-        # Canny Edge
-        lines_method2 = cv2.Canny(image, 100, 200)
-
-        return lines_method1, lines_method2
-
-
-    def detect_edges(self, image):
-        # Sobel
-        sobelx = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=3)
-        sobely = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=3)
-        edges_method1 = cv2.magnitude(sobelx, sobely).astype(np.uint8)
-        _, edges_method1 = cv2.threshold(edges_method1, 50, 255, cv2.THRESH_BINARY)
-
-        # Prewitt
-        kernel_prewitt_x = np.array([[1, 0, -1],
-                                     [1, 0, -1],
-                                     [1, 0, -1]], dtype=np.float32)
-        kernel_prewitt_y = np.array([[1, 1, 1],
-                                     [0, 0, 0],
-                                     [-1, -1, -1]], dtype=np.float32)
-
-        prewitt_x = cv2.filter2D(image, cv2.CV_64F, kernel_prewitt_x)
-        prewitt_y = cv2.filter2D(image, cv2.CV_64F, kernel_prewitt_y)
-
-        prewitt_combined = cv2.magnitude(prewitt_x, prewitt_y)
-
-        _, edges_method2 = cv2.threshold(prewitt_combined, 50, 255, cv2.THRESH_BINARY)
-
-        return edges_method1, edges_method2
-
-    def show_images(self, original, adaptive_thresh, otsu_segmented, points_method1, points_method2,
-                    lines_method1, lines_method2, edges_method1, edges_method2):
-        display_width = self.master.winfo_width() - 100
-
-        def resize_image_with_aspect(image_array, scale_factor=0.5):
-            h, w = image_array.shape
-            scale = display_width / w
-            new_height = int(h * scale * scale_factor)
-            resized_image = Image.fromarray(image_array).resize(
-                (int(display_width * scale_factor), new_height), Image.LANCZOS
-            )
-            return ImageTk.PhotoImage(resized_image)
-
-        # Display the original image in the center
-        original_resized = resize_image_with_aspect(original, 0.6)
-        original_label = Label(self.scrollable_frame, image=original_resized, text="Original Image", compound="top")
-        original_label.image = original_resized  # Keep reference
-        original_label.pack(pady=10)
-
-        # Prepare the remaining images for grouping
-        images = [
-            ("Adaptive Thresholding", adaptive_thresh),
-            ("Local Otsu Thresholding", otsu_segmented),
-            ("Points Detection - Method 1", points_method1),
-            ("Points Detection - Method 2", points_method2),
-            ("Lines Detection - Method 1", lines_method1),
-            ("Lines Detection - Method 2", lines_method2),
-            ("Edges Detection - Method 1", edges_method1),
-            ("Edges Detection - Method 2", edges_method2),
-        ]
-
-        # Create frames for grouping images by two
-        for i in range(0, len(images), 2):
-            frame = Frame(self.scrollable_frame)
-            frame.pack(pady=10)
-
-            for j in range(2):
-                if i + j < len(images):
-                    title, img = images[i + j]
-                    img_resized = resize_image_with_aspect(img, 0.45)
-                    img_label = Label(frame, image=img_resized, text=title, compound="top")
-                    img_label.image = img_resized  # Keep reference
-                    img_label.pack(side="left", padx=5)
+    def gradient_detection(self, image, method="sobel"):
+        grad_x = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=3)
+        gradient_magnitude = cv2.magnitude(grad_x, grad_y)
+        return np.uint8(gradient_magnitude)
 
 
 if __name__ == "__main__":
-    root = Tk()
-    app = ImageProcessorApp(root)
+    root = tk.Tk()
+    app = ImageSegmentationApp(root)
     root.mainloop()
